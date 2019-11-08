@@ -31,26 +31,30 @@ func main() {
 
 	startPtr := flag.Int("s", 1, "start: where to start. a number from 0 to n")
 	stopPtr := flag.Int("l", 5, "length: number of length to try upto. a number from 1 to n")
-	verbosePtr := flag.Int("v", 0, "verbose: to show password combinations.0 - none. >= 1, after that many times. ")
+	verbosePtr := flag.Int("v", 10000, "verbose: to show password combinations.0 - none. >= 1, after that many times. ")
 	alphabetPtr := flag.String("a", "abc", "alpahabet: character combination to try")
 	filePtr := flag.String("f", "", "file: filename with extension (required field)")
+	threadPtr := flag.Int("t", 5, "start: where to start. a number from 1 to n")
 	flag.Parse()
 
 	displayTry := *verbosePtr > 0
 	fileName := *filePtr
+	threadNo := *threadPtr
 
 	if fileName == "" {
 		fmt.Println("-file name is not provided")
 		return
-	} else if *startPtr > *stopPtr {
+	}
+	if *startPtr > *stopPtr {
 		fmt.Println("start number should not be > length")
 		return
 	}
+	if threadNo <= 0 {
+		threadNo = 5
+	}
 
 	if fi, err := os.Stat(fileName); err == nil {
-		//dat, err := ioutil.ReadFile(args[1])
-		//checkError(err)
-		//fmt.Print(string(dat))
+
 		path, err := os.Getwd()
 		checkError(err)
 		filename := filepath.Join(path, fi.Name())
@@ -62,10 +66,10 @@ func main() {
 		fpwd := ""
 		start := time.Now()
 		ind := 0
-		ch := make(chan string, 20)
+		ch := make(chan string, 1)
 		for pwd := range GenerateCombinations(*alphabetPtr, *stopPtr, *startPtr) {
 			go unlock(ch, filename, pwd)
-			if len(ch) >= 15 {
+			if len(ch) > 0 {
 				found := false
 				for fpwd = range ch {
 					if fpwd != "" {
@@ -88,9 +92,11 @@ func main() {
 				ind++
 			}
 		}
-		for _ = range ch {
-			if len(ch) == 0 {
-				break
+		if len(ch) > 0 {
+			for _ = range ch {
+				if len(ch) == 0 {
+					break
+				}
 			}
 		}
 		elapsed := time.Since(start)
@@ -187,8 +193,6 @@ func unlock(c chan string, filename string, password string) {
 	if unzip(filename, password) {
 		fmt.Println("Password:" + password)
 		c <- password
-	} else {
-		c <- ""
 	}
 }
 func unzip(filename string, password string) bool {
