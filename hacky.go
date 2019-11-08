@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yeka/zip"
@@ -34,11 +36,13 @@ func main() {
 	verbosePtr := flag.Int("v", 10000, "verbose: to show password combinations.0 - none. >= 1, after that many times. ")
 	alphabetPtr := flag.String("a", "abc", "alpahabet: character combination to try")
 	filePtr := flag.String("f", "", "file: filename with extension (required field)")
+	dicFilePtr := flag.String("p", "", "dictionary: feed a list of supposed passwords text file")
 	threadPtr := flag.Int("t", 5, "start: where to start. a number from 1 to n")
 	flag.Parse()
 
 	displayTry := *verbosePtr > 0
 	fileName := *filePtr
+	dicFile := *dicFilePtr
 	threadNo := *threadPtr
 
 	if fileName == "" {
@@ -65,39 +69,90 @@ func main() {
 		fmt.Println("Extracting to :" + extract_path)
 		fpwd := ""
 		start := time.Now()
-		ind := 0
-		ch := make(chan string, 1)
-		for pwd := range GenerateCombinations(*alphabetPtr, *stopPtr, *startPtr) {
-			go unlock(ch, filename, pwd)
-			if len(ch) > 0 {
-				found := false
-				for fpwd = range ch {
-					if fpwd != "" {
-						found = true
-						break
+
+		if dicFile != "" {
+			ind := 0
+			ch := make(chan string, 1)
+			var wg sync.WaitGroup
+			for pwd := range readLines(dicFile) {
+				wg.Add(1)
+				go unlock(ch, filename, pwd, &wg)
+				if len(ch) > 0 {
+					found := false
+					for fpwd = range ch {
+						if fpwd != "" {
+							found = true
+							break
+						}
+						if len(ch) == 0 {
+							break
+						}
 					}
-					if len(ch) == 0 {
+					if found {
 						break
 					}
 				}
-				if found {
-					break
+				if displayTry {
+					if ind == *verbosePtr {
+						fmt.Println("Tried :" + pwd)
+						ind = 0
+					}
+					ind++
 				}
 			}
-			if displayTry {
-				if ind == *verbosePtr {
-					fmt.Println("Tried :" + pwd)
-					ind = 0
+			if fpwd == "" {
+				wg.Wait()
+				if len(ch) > 0 {
+					for fpwd = range ch {
+						if len(ch) == 0 {
+							break
+						}
+					}
 				}
-				ind++
 			}
 		}
-		if len(ch) > 0 {
-			for _ = range ch {
-				if len(ch) == 0 {
-					break
+
+		if fpwd == "" {
+			ind := 0
+			ch := make(chan string, 1)
+			var wg sync.WaitGroup
+			for pwd := range GenerateCombinations(*alphabetPtr, *stopPtr, *startPtr) {
+				wg.Add(1)
+				go unlock(ch, filename, pwd, &wg)
+				if len(ch) > 0 {
+					found := false
+					for fpwd = range ch {
+						if fpwd != "" {
+							found = true
+							break
+						}
+						if len(ch) == 0 {
+							break
+						}
+					}
+					if found {
+						break
+					}
+				}
+				if displayTry {
+					if ind == *verbosePtr {
+						fmt.Println("Tried :" + pwd)
+						ind = 0
+					}
+					ind++
 				}
 			}
+			if fpwd == "" {
+				wg.Wait()
+				if len(ch) > 0 {
+					for fpwd = range ch {
+						if len(ch) == 0 {
+							break
+						}
+					}
+				}
+			}
+
 		}
 		elapsed := time.Since(start)
 		if fpwd == "" {
@@ -117,6 +172,47 @@ func main() {
 
 }
 
+func readLines(filename string) <-chan string {
+	c := make(chan string)
+
+	go func(c chan string) {
+		defer close(c)
+
+		file, err := os.Open(filename)
+		defer file.Close()
+		if err != nil {
+			fmt.Println("Dictionary file error")
+			return
+		}
+		// Start reading from the file with a reader.
+		reader := bufio.NewReader(file)
+		var line string
+		for {
+			line, err = reader.ReadString('\n')
+			// Process the line here.
+			if line != "" {
+				c <- strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+			}
+			if err != nil {
+				break
+			}
+		}
+
+		if err != io.EOF {
+			fmt.Printf(" > Failed!: %v\n", err)
+		}
+	}(c)
+
+	return c
+}
+
+func limitLength(s string, length int) string {
+	if len(s) < length {
+		return s
+	}
+
+	return s[:length]
+}
 func GenerateCombinations(alphabet string, length int, startlength int) <-chan string {
 	c := make(chan string)
 	// Starting a separate goroutine that will create all the combinations,
@@ -189,7 +285,8 @@ func AddLetter(c chan string, combo string, alphabet string, length int, startle
 	}
 }
 
-func unlock(c chan string, filename string, password string) {
+func unlock(c chan string, filename string, password string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	if unzip(filename, password) {
 		fmt.Println("Password:" + password)
 		c <- password

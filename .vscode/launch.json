@@ -11,8 +11,8 @@
             "mode": "auto",
             "program": "${fileDirname}",
             "env": {},
-            "args": ["-f=mmmpi.zip","-v=100","-a=myponusi","-s=5","-l=7","t=10"]
-            //"args": ["-f=MSH.zip","-v=100","-a=myponusi","-s=5","-l=7","t=100"]
+            //"args": ["-f=mmmpi.zip","-v=100","-a=myponusi","-s=5","-l=7","-t=10","-d=list.txt"]
+            "args": ["-f=MSH.zip","-v=50","-a=nlym","-s=3","-l=5","-t=100","-p=list.txt"]
         }
     ]
 }
