@@ -1,3 +1,5 @@
 some file
 
 this is a new edit
+
+new edit
