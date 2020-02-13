@@ -12,7 +12,7 @@
             "program": "${fileDirname}",
             "env": {},
             //"args": ["-f=mmmpi.zip","-v=100","-a=abcds","-s=5","-l=7","-t=10","-d=list.txt"]
-            "args": ["-f=somezip.zip","-v=50","-a=nlym","-s=3","-l=5","-t=100","-p=list.txt"]
+            "args": ["-f=somezip.zip","-v=50","-a=nlym","-s=3","-l=5","-t=100","-p=dictionaryfile.txt"]
         }
     ]
 }
